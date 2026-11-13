@@ -45,13 +45,17 @@ let poolCache: { at: number; pools: Pools } | null = null;
 export async function loadPools(): Promise<Pools> {
   if (poolCache && Date.now() - poolCache.at < 5 * 60_000) return poolCache.pools;
   const q = () => supabaseAdmin().from(T.questions);
-  let res = await q().select("id, level, rope, spicy").eq("active", true);
+  type Row = { id: number; level: number; rope: number; spicy?: boolean };
+  let { data, error } = await q().select("id, level, rope, spicy").eq("active", true);
   // ยังไม่ได้รัน supabase/spicy.sql (ไม่มีคอลัมน์ spicy) ก็ยังเล่นได้ตามปกติ
-  if (res.error && res.error.code === "42703") res = await q().select("id, level, rope").eq("active", true);
-  const { data, error } = res;
+  if (error && error.code === "42703") {
+    const old = await q().select("id, level, rope").eq("active", true);
+    data = old.data as Row[] | null;
+    error = old.error;
+  }
   if (error) throw error;
   const pools: Pools = [[], [], []];
-  for (const r of data as { id: number; level: number; rope: number; spicy?: boolean }[]) {
+  for (const r of (data ?? []) as Row[]) {
     if (r.level >= 0 && r.level <= 2) pools[r.level].push(r.spicy ? { id: r.id, rope: r.rope, sp: true } : { id: r.id, rope: r.rope });
   }
   if (pools.some((p) => !p.some((x) => !x.sp))) throw new Error("questions table is missing a level");
