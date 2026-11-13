@@ -46,7 +46,9 @@ export async function loadPools(): Promise<Pools> {
   if (poolCache && Date.now() - poolCache.at < 5 * 60_000) return poolCache.pools;
   const q = () => supabaseAdmin().from(T.questions);
   type Row = { id: number; level: number; rope: number; spicy?: boolean };
-  let { data, error } = await q().select("id, level, rope, spicy").eq("active", true);
+  const first = await q().select("id, level, rope, spicy").eq("active", true);
+  let data: Row[] | null = first.data as Row[] | null;
+  let error: { code?: string } | null = first.error;
   // ยังไม่ได้รัน supabase/spicy.sql (ไม่มีคอลัมน์ spicy) ก็ยังเล่นได้ตามปกติ
   if (error && error.code === "42703") {
     const old = await q().select("id, level, rope").eq("active", true);
