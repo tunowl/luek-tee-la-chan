@@ -2,7 +2,8 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { supabaseAdmin } from "./supabase-server";
 import { FN, T } from "./db-names";
-import { GameError, toView, type GameState, type Pools, type QRef } from "./engine";
+import { GameError, type Pools, type QRef } from "./engine";
+import { viewAny, type AnyState } from "./games";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000; // ห้องที่ไม่ขยับเกิน 1 วันถือว่าหมดอายุ
 const ALPH = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 ตัว ตัด 0/O, 1/I/L ที่สับสนง่าย
@@ -43,23 +44,27 @@ export function cleanCode(raw: string): string {
 let poolCache: { at: number; pools: Pools } | null = null;
 export async function loadPools(): Promise<Pools> {
   if (poolCache && Date.now() - poolCache.at < 5 * 60_000) return poolCache.pools;
-  const { data, error } = await supabaseAdmin().from(T.questions).select("id, level, rope").eq("active", true);
+  const q = () => supabaseAdmin().from(T.questions);
+  let res = await q().select("id, level, rope, spicy").eq("active", true);
+  // ยังไม่ได้รัน supabase/spicy.sql (ไม่มีคอลัมน์ spicy) ก็ยังเล่นได้ตามปกติ
+  if (res.error && res.error.code === "42703") res = await q().select("id, level, rope").eq("active", true);
+  const { data, error } = res;
   if (error) throw error;
   const pools: Pools = [[], [], []];
-  for (const r of data as { id: number; level: number; rope: number }[]) {
-    if (r.level >= 0 && r.level <= 2) pools[r.level].push({ id: r.id, rope: r.rope } as QRef);
+  for (const r of data as { id: number; level: number; rope: number; spicy?: boolean }[]) {
+    if (r.level >= 0 && r.level <= 2) pools[r.level].push(r.spicy ? { id: r.id, rope: r.rope, sp: true } : { id: r.id, rope: r.rope });
   }
-  if (pools.some((p) => p.length === 0)) throw new Error("questions table is missing a level");
+  if (pools.some((p) => !p.some((x) => !x.sp))) throw new Error("questions table is missing a level");
   poolCache = { at: Date.now(), pools };
   return pools;
 }
 
-type RoomRow = { state: GameState; version: number };
+type RoomRow = { state: AnyState; version: number };
 export async function getRoom(code: string): Promise<RoomRow> {
   const { data, error } = await supabaseAdmin().from(T.rooms).select("state, version, updated_at").eq("code", code).maybeSingle();
   if (error) throw error;
   if (!data || Date.now() - new Date(data.updated_at as string).getTime() > ROOM_TTL_MS) throw new GameError("ไม่พบห้องนี้ หรือห้องหมดอายุแล้ว");
-  return { state: data.state as GameState, version: data.version as number };
+  return { state: data.state as AnyState, version: data.version as number };
 }
 
 export async function playerFromToken(code: string, token: string | undefined): Promise<string> {
@@ -75,9 +80,9 @@ export async function playerFromToken(code: string, token: string | undefined): 
   return data.player_id as string;
 }
 
-export async function createRoom(code: string, state: GameState, playerId: string, tokenHash: string): Promise<boolean> {
+export async function createRoom(code: string, state: AnyState, playerId: string, tokenHash: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin().rpc(FN.createRoom, {
-    p_code: code, p_state: state, p_view: toView(state), p_player_id: playerId, p_token_hash: tokenHash,
+    p_code: code, p_state: state, p_view: viewAny(state), p_player_id: playerId, p_token_hash: tokenHash,
   });
   if (error) throw error;
   return data === true;
@@ -86,19 +91,19 @@ export async function createRoom(code: string, state: GameState, playerId: strin
 // อัปเดตแบบตรวจเวอร์ชัน ลองใหม่สูงสุด 5 ครั้งถ้ามีคนเขียนแทรก
 export async function mutateRoom(
   code: string,
-  fn: (s: GameState) => GameState,
+  fn: (s: AnyState) => AnyState,
   extra: { addPlayer?: { id: string; tokenHash: string } } = {}
-): Promise<{ state: GameState; version: number }> {
+): Promise<{ state: AnyState; version: number }> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const { state, version } = await getRoom(code);
     const next = fn(state);
-    const nextIds = new Set(next.players.map((p) => p.id));
-    const removed = state.players.map((p) => p.id).filter((id) => !nextIds.has(id));
+    const nextIds = new Set((next.players as { id: string }[]).map((p) => p.id));
+    const removed = (state.players as { id: string }[]).map((p) => p.id).filter((id) => !nextIds.has(id));
     const { data, error } = await supabaseAdmin().rpc(FN.commitRoom, {
       p_code: code,
       p_expected: version,
       p_state: next,
-      p_view: toView(next),
+      p_view: viewAny(next),
       p_add_player: extra.addPlayer?.id ?? null,
       p_add_hash: extra.addPlayer?.tokenHash ?? null,
       p_remove_players: removed.length ? removed : null,

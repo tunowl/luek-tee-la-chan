@@ -5,11 +5,10 @@ export const HAND_SIZE = 5;
 export const NEED_FRONT = 3;
 export const MAX_PLAYERS = 6;
 export const ROPE_COUNT = 6;
-const SPECIAL_DRAW_CHANCE = 0.15;
 
 export type Special = "buddy" | "double" | "all";
-export type QRef = { id: number; rope: number };
-export type QCard = { kind: "q"; id: number; lv: number; rope: number };
+export type QRef = { id: number; rope: number; sp?: boolean }; // sp = คำถามโหมดทะลึ่ง 18+
+export type QCard = { kind: "q"; id: number; lv: number; rope: number; sp?: boolean };
 export type SCard = { kind: "s"; s: Special };
 export type Card = QCard | SCard;
 
@@ -38,6 +37,7 @@ export type GameEvent =
 export type Phase = "lobby" | "play" | "up" | "end";
 
 export type GameState = {
+  game?: "lth"; // ห้องเก่าที่สร้างก่อนมีหลายเกมไม่มีช่องนี้ ถือเป็น lth
   phase: Phase;
   level: number;
   hostId: string;
@@ -48,6 +48,7 @@ export type GameState = {
   events: GameEvent[];
   eventSeq: number;
   locked: boolean; // ปิดรับคนเข้าห้องเพิ่ม
+  spicy?: boolean; // โหมดทะลึ่ง 18+
 };
 
 export type Pools = QRef[][]; // คำถามทั้งหมดของแต่ละระดับ โหลดจาก Supabase
@@ -63,7 +64,8 @@ export type Action =
   | { type: "next" }
   | { type: "again" }
   | { type: "kick"; player: number }
-  | { type: "lock"; locked: boolean };
+  | { type: "lock"; locked: boolean }
+  | { type: "spicy"; on: boolean };
 
 export class GameError extends Error {}
 
@@ -82,26 +84,26 @@ function shuffle<T>(a: T[]): T[] {
   }
   return b;
 }
-function randomSpecial(playerCount: number): Special {
+// การ์ดพิเศษได้จากเชือกสีใหม่เท่านั้น และไม่ซ้ำกับที่มีในมือ จนกว่าจะมีครบทุกแบบแล้ว
+function pickSpecial(p: Player, playerCount: number): Special {
   const pool: Special[] = playerCount >= 3 ? ["buddy", "double", "all"] : ["buddy", "all"];
-  return pool[Math.floor(Math.random() * pool.length)];
+  const missing = pool.filter((s) => !p.hand.some((c) => c.kind === "s" && c.s === s));
+  const from = missing.length ? missing : pool;
+  return from[Math.floor(Math.random() * from.length)];
 }
-const MIN_QUESTIONS = 2; // ในมือต้องมีการ์ดคำถามอย่างน้อยเท่านี้เสมอ ไม่งั้นถึงตาแล้วจะถามไม่ได้
 
-function draw(st: GameState, pools: Pools): Card {
-  if (Math.random() < SPECIAL_DRAW_CHANCE) return { kind: "s", s: randomSpecial(st.players.length) };
-  return drawQuestion(st, pools);
-}
+// คำถามทะลึ่งเข้ากองเฉพาะห้องที่เปิดโหมด 18+
+const poolOf = (st: GameState, pools: Pools, lv: number) => pools[lv].filter((q) => st.spicy || !q.sp);
 function drawQuestion(st: GameState, pools: Pools): QCard {
   const lv = st.level;
-  if (!st.decks[lv] || st.decks[lv].length === 0) st.decks[lv] = shuffle(pools[lv]);
+  if (!st.decks[lv] || st.decks[lv].length === 0) st.decks[lv] = shuffle(poolOf(st, pools, lv));
   const q = st.decks[lv].pop();
   if (!q) throw new GameError("ยังไม่มีคำถามในระดับนี้ ตรวจตาราง questions");
-  return { kind: "q", id: q.id, lv, rope: q.rope };
+  return q.sp ? { kind: "q", id: q.id, lv, rope: q.rope, sp: true } : { kind: "q", id: q.id, lv, rope: q.rope };
 }
+// การ์ดคำถามในมือเติมให้ครบ 5 ใบเสมอ การ์ดพิเศษไม่กินที่
 function refill(st: GameState, p: Player, pools: Pools) {
-  while (p.hand.length < HAND_SIZE) p.hand.push(draw(st, pools));
-  while (p.hand.filter((c) => c.kind === "q").length < MIN_QUESTIONS) p.hand.push(drawQuestion(st, pools));
+  while (p.hand.filter((c) => c.kind === "q").length < HAND_SIZE) p.hand.push(drawQuestion(st, pools));
 }
 type NewEvent = GameEvent extends infer E ? (E extends GameEvent ? Omit<E, "n"> : never) : never;
 function pushEvent(st: GameState, e: NewEvent) {
@@ -130,6 +132,7 @@ function levelDoneReason(st: GameState): "ropes" | "front" | null {
 /* ---------- lifecycle ---------- */
 export function createState(hostId: string, hostName: string): GameState {
   return {
+    game: "lth",
     phase: "lobby",
     level: 0,
     hostId,
@@ -160,7 +163,7 @@ export function addPlayer(st: GameState, id: string, name: string, pools: Pools)
 
 function deal(st: GameState, pools: Pools) {
   st.level = 0;
-  st.decks = [shuffle(pools[0]), shuffle(pools[1]), shuffle(pools[2])];
+  st.decks = [0, 1, 2].map((lv) => shuffle(poolOf(st, pools, lv)));
   st.current = 0;
   st.pending = null;
   st.events = [];
@@ -202,8 +205,9 @@ function finalize(st: GameState, pools: Pools) {
     const ropesBefore = tableRopes(st);
     receiver.front.push(q.card);
     // กติกาเสริม: ได้เชือกสีใหม่ของวงในชั้นนี้ รับการ์ดพิเศษเพิ่ม 1 ใบ
-    if (!ropesBefore.has(q.card.rope)) {
-      const special = randomSpecial(st.players.length);
+    // ยกเว้นใบที่ทำให้จบชั้นพอดี (เช่นเชือกสีที่ 6) ไม่งั้นจะดูเหมือนได้การ์ดพิเศษฟรีตอนขึ้นชั้นใหม่
+    if (!ropesBefore.has(q.card.rope) && !levelDoneReason(st)) {
+      const special = pickSpecial(receiver, st.players.length);
       receiver.hand.push({ kind: "s", s: special });
       pushEvent(st, { type: "bonus", player: receiver.id, rope: q.card.rope, special });
     }
@@ -331,6 +335,12 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
       st.locked = !!a.locked;
       break;
 
+    case "spicy":
+      if (!isHost) throw new GameError("เฉพาะเจ้าของห้อง");
+      if (st.phase !== "lobby" && st.phase !== "end") throw new GameError("เปิดปิดโหมดทะลึ่งได้ก่อนเริ่มรอบเท่านั้น");
+      st.spicy = !!a.on;
+      break;
+
     default:
       throw new GameError("ไม่รู้จักการกระทำนี้");
   }
@@ -342,11 +352,13 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
    ไม่มีไพ่ในมือ ไม่มีลำดับกองไพ่ */
 export type PublicPlayer = { id: string; name: string; pass: boolean; front: QCard[]; handCount: number };
 export type GameView = {
+  game: "lth";
   phase: Phase;
   level: number;
   hostId: string;
   current: number;
   locked: boolean;
+  spicy: boolean;
   players: PublicPlayer[];
   pending: Omit<Pending, "handIndex"> | null;
   events: GameEvent[];
@@ -355,11 +367,13 @@ export type GameView = {
 
 export function toView(st: GameState): GameView {
   return {
+    game: "lth",
     phase: st.phase,
     level: st.level,
     hostId: st.hostId,
     current: st.current,
     locked: st.locked,
+    spicy: !!st.spicy,
     players: st.players.map((p) => ({ id: p.id, name: p.name, pass: p.pass, front: p.front, handCount: p.hand.length })),
     pending: st.pending
       ? { asker: st.pending.asker, card: st.pending.card, targets: st.pending.targets, res: st.pending.res, buddyUsed: st.pending.buddyUsed, special: st.pending.special }

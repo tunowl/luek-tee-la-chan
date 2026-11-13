@@ -7,8 +7,8 @@ const display = Mitr({ subsets: ["thai", "latin"], weight: ["400", "500", "600"]
 const body = Anuphan({ subsets: ["thai", "latin"], weight: ["400", "500", "600"], variable: "--font-body", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "ลึกทีละชั้น — การ์ดชวนคุยออนไลน์",
-  description: "การ์ดชวนคุย 147 ใบ สามระดับ เล่นด้วยกันจากโทรศัพท์ของแต่ละคน",
+  title: "ลึกทีละชั้น — เกมเล่นกับเพื่อนออนไลน์",
+  description: "การ์ดชวนคุย มนุษย์หมาป่า และเกมไพ่จดหมายลับ เล่นด้วยกันจากโทรศัพท์ของแต่ละคน",
   referrer: "strict-origin-when-cross-origin",
   robots: { index: true, follow: false },
 };

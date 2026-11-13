@@ -3,11 +3,74 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CODE_LEN, CODE_RE, LEVELS, lastName, saveName } from "@/lib/ui";
 import { NEED_FRONT, SPECIALS } from "@/lib/engine";
+import { GAMES, GAME_KINDS, type GameKind } from "@/lib/games";
+import { ROLES, ROLE_ORDER } from "@/lib/wolf";
+import { LCARDS } from "@/lib/letter";
+import { LOCATIONS } from "@/lib/spy";
+
+function Rules({ game }: { game: GameKind }) {
+  if (game === "wolf") {
+    return (
+      <>
+        <ol>
+          <li>เจ้าของห้องเป็น<b>ผู้ดำเนินเกม</b> ไม่ได้รับบทบาท ผู้เล่นอย่างน้อย 5 คน (เล่นสนุกสุดที่ 7–12 คน)</li>
+          <li>ทุกคนเปิดดูบทบาทลับในโทรศัพท์ของตัวเอง หมาป่าจะเห็นว่าใครเป็นพวกเดียวกัน</li>
+          <li><b>กลางคืน</b> ทุกคนหลับตา ผู้ดำเนินเกมปลุกหมาป่า ผู้หยั่งรู้ และหมอทีละบทบาท แล้วแตะบันทึกสิ่งที่แต่ละคนชี้</li>
+          <li><b>กลางวัน</b> ประกาศว่าใครตาย วงถกเถียงกัน แล้วโหวตจากโทรศัพท์ ผู้ดำเนินเกมสรุปว่าจะประหารใคร</li>
+          <li>ชาวบ้านชนะเมื่อหมาป่าหมด หมาป่าชนะเมื่อจำนวนเท่ากับชาวบ้านที่เหลือ</li>
+        </ol>
+        <ul className="muted">{ROLE_ORDER.map((r) => <li key={r}><b>{ROLES[r].name}</b>: {ROLES[r].how}</li>)}</ul>
+      </>
+    );
+  }
+  if (game === "spy") {
+    return (
+      <ol>
+        <li>ทุกคนได้การ์ดบอก<b>สถานที่</b>เดียวกันพร้อมบทบาทของตัวเอง ยกเว้น 1 คนที่เป็น<b>สายลับ</b> ซึ่งไม่รู้ว่าอยู่ที่ไหน</li>
+        <li>ผลัดกันถามคำถามใครก็ได้เกี่ยวกับสถานที่ ตอบให้พอรู้ว่าเป็นพวกเดียวกัน แต่อย่าชัดจนสายลับเดาได้</li>
+        <li>ระหว่างเล่น ใครสงสัยใครกดกล่าวหาได้คนละครั้ง ถ้าทุกคนเห็นด้วยจะเปิดการ์ดทันที</li>
+        <li>สายลับเปิดตัวแล้วทายสถานที่ได้ทุกเมื่อ ถูกชนะ ผิดแพ้</li>
+        <li>หมดเวลาแล้วโหวตสุดท้าย ถ้าเสียงส่วนใหญ่ชี้ถูกตัว วงชนะ</li>
+        <li className="muted">มีสถานที่ {LOCATIONS.length} แห่ง: {LOCATIONS.map((l) => l.name).join(" · ")}</li>
+      </ol>
+    );
+  }
+  if (game === "letter") {
+    return (
+      <>
+        <ol>
+          <li>ทุกคนถือไพ่ 1 ใบ ถึงตาให้จั่ว 1 ใบ แล้วเลือกเล่น 1 ใน 2 ใบ ทำตามความสามารถของไพ่</li>
+          <li>ใครตกรอบก็ออกจากรอบนั้น ไพ่ที่เล่นแล้วทุกคนเห็น</li>
+          <li>รอบจบเมื่อเหลือคนเดียว หรือกองหมด (คนที่ถือแต้มสูงสุดชนะ) ผู้ชนะได้ตรา 1 อัน</li>
+          <li>สะสมตราครบก่อนชนะเกม: 2 คน 6 อัน · 3 คน 5 อัน · 4 คน 4 อัน · 5–6 คน 3 อัน</li>
+        </ol>
+        <ul className="muted">{LCARDS.map((c) => <li key={c.v}><b>{c.v} {c.name}</b> ×{c.count}: {c.how}</li>)}</ul>
+      </>
+    );
+  }
+  return (
+    <>
+      <ol>
+        <li>ทุกคนได้การ์ดคำถาม 5 ใบ และการ์ด<b>ผ่าน</b> 1 ใบ</li>
+        <li>ถึงตาใคร ให้เลือกการ์ดคำถามหนึ่งใบ แล้วเลือกคนที่จะถาม</li>
+        <li>คนถูกถามตอบ หรือใช้การ์ดผ่านได้โดยไม่ต้องอธิบาย การ์ดที่ตอบแล้วจะไปวางตรงหน้าคนตอบ</li>
+        <li>การ์ดคำถามทุกใบมีเชือกหนึ่งในหกสี ใครได้การ์ดที่มีเชือก<b>สีที่วงยังไม่มี</b>ในชั้นนี้ จะได้การ์ดพิเศษเพิ่ม 1 ใบ</li>
+        <li>วงดำลงชั้นถัดไปเมื่อ<b>การ์ดตรงหน้าทุกคนรวมกันมีเชือกครบ 6 สี</b> หรือ<b>ทุกคนมีการ์ดตรงหน้าครบ {NEED_FRONT} ใบ</b></li>
+        <li>จบชั้นก้นทะเลเมื่อไหร่ ก็จบรอบ</li>
+        <li>เจ้าของห้องเปิด<b>โหมดทะลึ่ง 18+</b> ได้ในห้องรอ จะมีคำถามเรื่องรัก ๆ ใคร่ ๆ อีก 50 ข้อปนเข้ามา ขำ ๆ ที่ผิวน้ำ แล้วลึกขึ้นทีละชั้น</li>
+      </ol>
+      <ul className="muted">
+        {Object.values(SPECIALS).map((s) => <li key={s.name}><b>{s.name}</b>: {s.how}</li>)}
+      </ul>
+    </>
+  );
+}
 
 export default function Home() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [game, setGame] = useState<GameKind>("lth");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -21,7 +84,7 @@ export default function Home() {
     if (!name.trim()) return setErr("ใส่ชื่อที่จะให้เพื่อนเห็นก่อน");
     setBusy(true);
     try {
-      const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+      const res = await fetch("/api/rooms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, game }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error);
       saveName(name.trim());
@@ -39,23 +102,37 @@ export default function Home() {
     router.push(`/room/${c}`);
   }
 
+  const G = GAMES[game];
   return (
     <main className="wrap">
       <h1 className="title"><span>ลึก</span><span>ทีละ</span><span>ชั้น</span></h1>
-      <p className="lede">การ์ดชวนคุย 147 ใบ สามระดับ ทุกคนเล่นจากโทรศัพท์ของตัวเอง แค่สร้างห้องแล้วส่งลิงก์ให้เพื่อน</p>
-      <div className="layers">
-        {LEVELS.map((l) => (
-          <div className="layer" key={l.name}><h3>{l.name}</h3><p>{l.desc}</p></div>
+      <p className="lede">เกมเล่นกับเพื่อน ทุกคนเล่นจากโทรศัพท์ของตัวเอง แค่เลือกเกม สร้างห้อง แล้วส่งลิงก์ให้เพื่อน</p>
+
+      <div className="games" role="radiogroup" aria-label="เลือกเกม">
+        {GAME_KINDS.map((k) => (
+          <button key={k} className={`game ${game === k ? "on" : ""}`} role="radio" aria-checked={game === k} onClick={() => setGame(k)}>
+            <b>{GAMES[k].name}</b>
+            <span>{GAMES[k].desc}</span>
+            <em>{GAMES[k].short} · {GAMES[k].players}</em>
+          </button>
         ))}
       </div>
+
+      {game === "lth" && (
+        <div className="layers">
+          {LEVELS.map((l) => (
+            <div className="layer" key={l.name}><h3>{l.name}</h3><p>{l.desc}</p></div>
+          ))}
+        </div>
+      )}
       <div className="stack">
         <div>
           <label className="lb" htmlFor="nm">ชื่อของคุณในวง</label>
           <input className="txt" id="nm" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น มิ้นท์" />
         </div>
-        <button className="btn" onClick={create} disabled={busy}>{busy ? "กำลังสร้างห้อง…" : "สร้างห้องใหม่"}</button>
+        <button className="btn" onClick={create} disabled={busy}>{busy ? "กำลังสร้างห้อง…" : `สร้างห้อง${G.name}`}</button>
         <div>
-          <label className="lb" htmlFor="jc">หรือเข้าห้องของเพื่อน</label>
+          <label className="lb" htmlFor="jc">หรือเข้าห้องของเพื่อน (เกมไหนก็ได้)</label>
           <div className="row">
             <input className="txt" id="jc" maxLength={CODE_LEN} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder={`รหัส ${CODE_LEN} ตัว`} autoCapitalize="characters" style={{ letterSpacing: ".15em" }}
@@ -66,18 +143,8 @@ export default function Home() {
       </div>
       {err && <p className="note" role="alert">{err}</p>}
       <details>
-        <summary>วิธีเล่น</summary>
-        <ol>
-          <li>ทุกคนได้การ์ดคำถาม 5 ใบ และการ์ด<b>ผ่าน</b> 1 ใบ</li>
-          <li>ถึงตาใคร ให้เลือกการ์ดคำถามหนึ่งใบ แล้วเลือกคนที่จะถาม</li>
-          <li>คนถูกถามตอบ หรือใช้การ์ดผ่านได้โดยไม่ต้องอธิบาย การ์ดที่ตอบแล้วจะไปวางตรงหน้าคนตอบ</li>
-          <li>การ์ดคำถามทุกใบมีเชือกหนึ่งในหกสี ใครได้การ์ดที่มีเชือก<b>สีที่วงยังไม่มี</b>ในชั้นนี้ จะได้การ์ดพิเศษเพิ่ม 1 ใบ</li>
-          <li>วงดำลงชั้นถัดไปเมื่อ<b>การ์ดตรงหน้าทุกคนรวมกันมีเชือกครบ 6 สี</b> หรือ<b>ทุกคนมีการ์ดตรงหน้าครบ {NEED_FRONT} ใบ</b></li>
-          <li>จบชั้นก้นทะเลเมื่อไหร่ ก็จบรอบ</li>
-        </ol>
-        <ul className="muted">
-          {Object.values(SPECIALS).map((s) => <li key={s.name}><b>{s.name}</b>: {s.how}</li>)}
-        </ul>
+        <summary>วิธีเล่น{G.name}</summary>
+        <Rules game={game} />
       </details>
     </main>
   );

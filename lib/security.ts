@@ -3,7 +3,8 @@ import { timingSafeEqual } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseAdmin } from "./supabase-server";
 import { FN } from "./db-names";
-import { GameError, type Action } from "./engine";
+import { GameError } from "./engine";
+import type { AnyAction } from "./games";
 
 const MAX_BODY_BYTES = 2048;
 export const COOKIE = "lth_t";
@@ -88,19 +89,47 @@ const bool = (v: unknown): boolean => {
   if (typeof v !== "boolean") throw new GameError("คำขอไม่ถูกต้อง");
   return v;
 };
-export function parseAction(raw: unknown): Action {
+const pid = (v: unknown): string => {
+  if (typeof v !== "string" || !/^[A-Za-z0-9_-]{12}$/.test(v)) throw new GameError("คำขอไม่ถูกต้อง");
+  return v;
+};
+const pidOrNull = (v: unknown): string | null => (v === null || v === undefined ? null : pid(v));
+const intOrNull = (v: unknown, max: number): number | null => (v === null || v === undefined ? null : int(v, max));
+
+// รูปแบบของทุกเกมรวมกัน แต่ละเกมตรวจอีกชั้นว่าเป็นการกระทำของเกมตัวเองหรือไม่
+export function parseAction(raw: unknown): AnyAction {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new GameError("คำขอไม่ถูกต้อง");
   const a = raw as Record<string, unknown>;
   switch (a.type) {
     case "start": case "answer": case "pass": case "skip": case "deeper": case "next": case "again":
+    case "dawn": case "reset": case "timeup": case "reveal":
       return { type: a.type };
     case "ask": {
       if (!Array.isArray(a.targets) || a.targets.length > 6) throw new GameError("คำขอไม่ถูกต้อง");
       return { type: "ask", handIndex: int(a.handIndex, 20), cardId: int(a.cardId, 10_000_000), targets: a.targets.map((t) => int(t, 5)), useDouble: bool(a.useDouble), useAll: bool(a.useAll) };
     }
     case "buddy": return { type: "buddy", to: int(a.to, 5) };
-    case "kick": return { type: "kick", player: int(a.player, 5) };
+    case "kick": return { type: "kick", player: int(a.player, 15) };
     case "lock": return { type: "lock", locked: bool(a.locked) };
+    case "spicy": return { type: "spicy", on: bool(a.on) };
+    /* มนุษย์หมาป่า */
+    case "settings":
+      return { type: "settings", auto: bool(a.auto), wolves: Math.max(1, int(a.wolves, 5)), seer: bool(a.seer), doctor: bool(a.doctor), hunter: bool(a.hunter) };
+    case "night": {
+      if (a.step !== "kill" && a.step !== "save" && a.step !== "check") throw new GameError("คำขอไม่ถูกต้อง");
+      return { type: "night", step: a.step, target: pidOrNull(a.target) };
+    }
+    case "vote": return { type: "vote", target: pidOrNull(a.target) };
+    case "execute": return { type: "execute", target: pidOrNull(a.target) };
+    case "mark": return { type: "mark", target: pid(a.target), alive: bool(a.alive) };
+    /* จดหมายลับ */
+    case "play": return { type: "play", card: int(a.card, 9), target: pidOrNull(a.target), guess: intOrNull(a.guess, 9) };
+    case "keep": return { type: "keep", card: int(a.card, 9) };
+    /* สายลับในวง (vote ใช้ร่วมกับมนุษย์หมาป่า) */
+    case "minutes": return { type: "minutes", minutes: int(a.minutes, 15) };
+    case "accuse": return { type: "accuse", target: pid(a.target) };
+    case "verdict": return { type: "verdict", yes: bool(a.yes) };
+    case "guess": return { type: "guess", location: int(a.location, 50) };
     default: throw new GameError("คำขอไม่ถูกต้อง");
   }
 }

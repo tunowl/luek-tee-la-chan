@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { addPlayer } from "@/lib/engine";
+import { addAny } from "@/lib/games";
 import { cleanCode, cleanName, hashToken, loadPools, mutateRoom, newId, newToken } from "@/lib/rooms-server";
 import { assertSameOrigin, clientIp, fail, json, rateLimit, readJson, setTokenCookie } from "@/lib/security";
 
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ cod
     const pools = await loadPools();
     const playerId = newId();
     const token = newToken();
-    await mutateRoom(code, (s) => addPlayer(s, playerId, name, pools), { addPlayer: { id: playerId, tokenHash: hashToken(token) } });
+    await mutateRoom(code, (s) => addAny(s, playerId, name, () => pools), { addPlayer: { id: playerId, tokenHash: hashToken(token) } });
     const res = json({ playerId });
     setTokenCookie(res, code, token);
     return res;
