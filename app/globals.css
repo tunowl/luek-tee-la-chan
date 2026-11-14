@@ -2,50 +2,61 @@
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
-  --l1-bg:#DCEFEA; --l1-ink:#16343B; --l1-muted:#4B6A70;
-  --l2-bg:#3D8A8E; --l2-ink:#F3FBF9; --l2-muted:#D3ECE9;
-  --l3-bg:#141F3A; --l3-ink:#E9EEFF; --l3-muted:#A9B4D6;
-  --paper:#FFFDF7; --paper-ink:#1D2A30; --paper-muted:#6A767B;
+  /* ลึกทีละชั้น: สีน้ำทะเล 3 ระดับ */
+  --l1-bg:#DCEFEA; --l1-ink:#16343B; --l1-muted:#41616A;
+  --l2-bg:#286C71; --l2-ink:#F3FBF9; --l2-muted:#DCF1EE;
+  --l3-bg:#141F3A; --l3-ink:#E9EEFF; --l3-muted:#AEB8D9;
+  --paper:#FFFDF7; --paper-ink:#1D2A30; --paper-muted:#5E6A70;
   --c0:#FFD18A; --c1:#5FC2B5; --c2:#2E6FA3; --c3:#3B2F7A;
+  --accent:var(--c1);
+  /* ฟอนต์: หัวข้อ Mitr (ลึกทีละชั้น) ตัวเนื้อหา IBM Plex Sans Thai */
   --display:var(--font-display),"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif;
   --body:var(--font-body),"Noto Sans Thai","Leelawadee UI",Tahoma,sans-serif;
+  --display-weight:500;
+  /* ขนาด มุมโค้ง เงา เวลา */
+  --r-sm:10px; --r-md:14px; --r-lg:20px; --r-pill:999px;
+  --shadow-card:0 1px 0 rgba(0,0,0,.05),0 10px 24px -16px rgba(0,0,0,.45);
+  --t-fast:160ms; --t-med:220ms; --ease:cubic-bezier(.2,.8,.2,1);
+  --tap:44px;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --l1-bg:#1D3B41; --l1-ink:#E6F4F1; --l1-muted:#A3C2C2;
-    --l2-bg:#123B44; --l2-ink:#E6F6F4; --l2-muted:#9CC7C6;
-    --l3-bg:#0A1226; --l3-ink:#E2E8FF; --l3-muted:#8F9AC0;
-    --paper:#F4EFE4; --paper-ink:#1D2A30; --paper-muted:#636E73;
+    --l1-bg:#1D3B41; --l1-ink:#E6F4F1; --l1-muted:#A8C6C6;
+    --l2-bg:#123B44; --l2-ink:#E6F6F4; --l2-muted:#A6CFCE;
+    --l3-bg:#0A1226; --l3-ink:#E2E8FF; --l3-muted:#98A3C8;
+    --paper:#F4EFE4; --paper-ink:#1D2A30; --paper-muted:#5A656A;
     color-scheme:dark;
   }
 }
 *,*::before,*::after{box-sizing:inherit}
-html{min-height:100%}
-body{margin:0;min-height:100vh;font-family:var(--body);font-size:17px;line-height:1.6;background:var(--bg);color:var(--ink);transition:background-color 1.4s ease,color 1.4s ease;-webkit-font-smoothing:antialiased}
+html{min-height:100%;-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;font-family:var(--body);font-size:17px;line-height:1.65;background:var(--bg);color:var(--ink);transition:background-color 1.2s ease,color 1.2s ease;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 body[data-level="1"]{--bg:var(--l1-bg);--ink:var(--l1-ink);--muted:var(--l1-muted)}
 body[data-level="2"]{--bg:var(--l2-bg);--ink:var(--l2-ink);--muted:var(--l2-muted)}
 body[data-level="3"]{--bg:var(--l3-bg);--ink:var(--l3-ink);--muted:var(--l3-muted)}
-.wrap{max-width:580px;margin:0 auto;padding:24px 20px 48px}
-h1,h2,h3{font-family:var(--display);font-weight:500;margin:0;line-height:1.25}
+.wrap{max-width:600px;margin:0 auto;padding:24px 20px 56px}
+h1,h2,h3{font-family:var(--display);font-weight:var(--display-weight);margin:0;line-height:1.3;text-wrap:balance}
 p{margin:0}
 button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--c1);outline-offset:3px}
-.btn{display:block;width:100%;border:0;border-radius:999px;padding:15px 22px;font-family:var(--display);font-size:18px;font-weight:500;background:var(--ink);color:var(--bg);transition:transform .15s ease,opacity .2s}
+button:focus-visible,input:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;border:0;border-radius:var(--r-pill);padding:14px 22px;font-family:var(--display);font-size:18px;font-weight:var(--display-weight);background:var(--ink);color:var(--bg);text-decoration:none;transition:transform var(--t-fast) var(--ease),opacity var(--t-med),box-shadow var(--t-med)}
 .btn:active{transform:scale(.98)}
 .btn[disabled]{opacity:.35;cursor:not-allowed}
 .btn.ghost{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
-.link{background:none;border:0;padding:6px 0;color:var(--muted);font-size:15px;text-decoration:underline;text-underline-offset:3px}
+.link{display:inline-flex;align-items:center;min-height:var(--tap);background:none;border:0;padding:0 2px;color:var(--muted);font-size:15px;text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 .muted{color:var(--muted)}
 .small{font-size:14px}
 .stack>*+*{margin-top:12px}
 .center{text-align:center}
-.txt{width:100%;font:inherit;padding:13px 16px;border-radius:14px;border:0;background:var(--paper);color:var(--paper-ink)}
-.lb{display:block;font-size:14px;color:var(--muted);margin-bottom:6px}
+.txt{width:100%;min-height:52px;font:inherit;padding:13px 16px;border-radius:var(--r-md);border:1.5px solid transparent;background:var(--paper);color:var(--paper-ink);transition:border-color var(--t-fast)}
+.txt::placeholder{color:var(--paper-muted)}
+.txt:focus{border-color:var(--accent);outline:none}
+.lb{display:block;font-size:14px;font-weight:500;color:var(--muted);margin-bottom:6px}
 .row{display:flex;gap:10px}
 .row>input{flex:1;min-width:0}
 .row>.btn{width:auto;flex:none}
-.note{margin-top:16px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--ink) 9%,transparent);font-size:15px}
+.note{margin-top:16px;padding:14px 16px;border-radius:var(--r-md);background:color-mix(in srgb,var(--ink) 9%,transparent);font-size:15px}
 
 .title{font-size:clamp(56px,17vw,96px);font-weight:600;letter-spacing:-.01em;line-height:1.02;margin-top:10px}
 .title span{display:block}
@@ -185,3 +196,88 @@ details li+li{margin-top:6px}
 .deck span{font-size:13.5px;color:var(--muted);display:block;line-height:1.4}
 .deck.on{box-shadow:inset 0 0 0 2px var(--ink);background:color-mix(in srgb,var(--ink) 14%,transparent)}
 .deck.on b::after{content:" ✓"}
+
+/* =====================================================================
+   ธีมตามเกม (ตั้งด้วย body[data-theme]) ลึกทีละชั้นใช้ data-level ตามเดิม
+   เกมอื่นใช้ลุคมินิมอล แต่ละเกมมีสีเน้น 1 สี
+   ===================================================================== */
+body[data-theme]:not([data-theme="sea"]){--display:var(--body);--display-weight:600}
+/* ทะเล: วงโฟกัสใช้สีตัวหนังสือ ชัดทุกระดับความลึก */
+body[data-theme="sea"]{--accent:var(--ink)}
+
+body[data-theme="home"]{--bg:#F7F5F0;--ink:#15171B;--muted:#565B64;--paper:#FFFFFF;--paper-ink:#15171B;--paper-muted:#5D626B;--accent:#2E6FA3}
+body[data-theme="wolf-night"]{--bg:#0D0E12;--ink:#EDEEF0;--muted:#A2A7B1;--paper:#1A1C22;--paper-ink:#EDEEF0;--paper-muted:#A2A7B1;--accent:#E5484D;color-scheme:dark}
+body[data-theme="wolf-day"]{--bg:#F3F1EC;--ink:#17181C;--muted:#575B64;--paper:#FFFFFF;--paper-ink:#17181C;--paper-muted:#5C6069;--accent:#C62F35}
+body[data-theme="letter"]{--bg:#F6F1E7;--ink:#2A1A1F;--muted:#67565A;--paper:#FFFDF8;--paper-ink:#2A1A1F;--paper-muted:#6A5D61;--accent:#8E2B3D}
+body[data-theme="spy"]{--bg:#121417;--ink:#ECEDEE;--muted:#A0A5AC;--paper:#1D2025;--paper-ink:#ECEDEE;--paper-muted:#A5AAB1;--accent:#F2A93B;color-scheme:dark}
+@media (prefers-color-scheme:dark){
+  body[data-theme="home"]{--bg:#111215;--ink:#ECEDEF;--muted:#A3A8B1;--paper:#1B1D21;--paper-ink:#ECEDEF;--paper-muted:#A3A8B1;--accent:#6FB2E8}
+  body[data-theme="wolf-day"]{--bg:#1C1D21;--ink:#F1F1F2;--muted:#ABAFB8;--paper:#26282D;--paper-ink:#F1F1F2;--paper-muted:#ABAFB8;--accent:#F06A6E}
+  body[data-theme="letter"]{--bg:#1A1215;--ink:#F3E9EA;--muted:#BCA9AD;--paper:#F6EFE6;--paper-ink:#2A1A1F;--paper-muted:#665A5E;--accent:#E0798B}
+}
+/* มินิมอล: ใช้เส้นขอบบาง ๆ แทนพื้นทึบ */
+body[data-theme]:not([data-theme="sea"]) .panel,
+body[data-theme]:not([data-theme="sea"]) .seat,
+body[data-theme]:not([data-theme="sea"]) .note{background:transparent;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 16%,transparent)}
+body[data-theme]:not([data-theme="sea"]) .card{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--paper-ink) 10%,transparent),var(--shadow-card)}
+body[data-theme]:not([data-theme="sea"]) .chip.on,
+body[data-theme]:not([data-theme="sea"]) .deck.on{box-shadow:inset 0 0 0 2px var(--accent)}
+body[data-theme]:not([data-theme="sea"]) .seat.turn{box-shadow:inset 0 0 0 2px var(--accent)}
+body[data-theme]:not([data-theme="sea"]) .toggle input{accent-color:var(--accent)}
+body[data-theme]:not([data-theme="sea"]) .code{letter-spacing:.14em;font-weight:600}
+body[data-theme="letter"] .lcard::before{background:var(--lc,var(--accent))}
+
+/* =====================================================================
+   ปรับทุกธีม: ขนาดแตะได้อย่างน้อย 44px, hover บนจอที่มีเมาส์, จังหวะเคลื่อนไหวเท่ากัน
+   ===================================================================== */
+.chip{display:inline-flex;align-items:center;min-height:var(--tap);padding:8px 16px;line-height:1.3;transition:background-color var(--t-fast),box-shadow var(--t-fast),transform var(--t-fast) var(--ease)}
+.chip:active{transform:scale(.97)}
+.chip[disabled]{opacity:.55;cursor:not-allowed}
+.toggle{min-height:var(--tap);align-items:center}
+.toggle input{width:22px;height:22px;margin-top:0;flex:none}
+.panel{border-radius:var(--r-lg)}
+.panel h3{font-size:17px;margin-bottom:12px}
+.seat{border-radius:var(--r-md)}
+.card{border-radius:16px}
+.who{min-height:var(--tap)}
+.host{gap:6px 18px}
+.pl{min-height:52px}
+details summary{min-height:var(--tap);display:flex;align-items:center;justify-content:space-between}
+summary::after{float:none}
+@media (hover:hover) and (pointer:fine){
+  .btn:not([disabled]):hover{opacity:.88}
+  .btn.ghost:not([disabled]):hover{opacity:1;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+  .chip:not([disabled]):hover{background:color-mix(in srgb,var(--ink) 18%,transparent)}
+  .chip.on:hover{background:var(--ink)}
+  .link:hover{color:var(--ink)}
+  button.card:not(:disabled):hover{transform:translateY(-2px)}
+  button.card.picked:hover{transform:translateX(10px)}
+  .game:hover,.deck:not([disabled]):hover{background:color-mix(in srgb,var(--ink) 12%,transparent)}
+}
+
+/* =====================================================================
+   หน้าแรก
+   ===================================================================== */
+.home-head{padding:12px 0 6px}
+.brand{font-family:var(--font-display),var(--display);font-weight:600;font-size:clamp(44px,13vw,72px);line-height:1.05;letter-spacing:-.01em;margin:0}
+.brand span{display:inline-block}
+.brand span:nth-child(2){opacity:.72}
+.brand span:nth-child(3){opacity:.5}
+.home .lede{margin-top:12px;font-size:17px;color:var(--muted);max-width:38ch}
+.sec{font-size:13px;font-weight:600;letter-spacing:.06em;color:var(--muted);margin:28px 0 10px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px;margin:0}
+.game{position:relative;display:flex;flex-direction:column;gap:4px;min-height:var(--tap);text-align:left;border:0;border-radius:var(--r-lg);padding:14px 16px 14px 22px;background:color-mix(in srgb,var(--ink) 6%,transparent);transition:background-color var(--t-fast),box-shadow var(--t-fast)}
+.game::before{content:"";position:absolute;left:8px;top:14px;bottom:14px;width:4px;border-radius:2px;background:var(--g)}
+.game[data-g="lth"]{--g:linear-gradient(180deg,#FFD18A,#5FC2B5,#2E6FA3,#3B2F7A)}
+.game[data-g="wolf"]{--g:#E5484D}
+.game[data-g="letter"]{--g:#8E2B3D}
+.game[data-g="spy"]{--g:#F2A93B}
+.game b{font-family:var(--body);font-weight:600;font-size:18px}
+.game span{font-size:14.5px;color:var(--muted);line-height:1.5}
+.game em{font-style:normal;font-size:13px;color:var(--muted);margin-top:2px}
+.game.on{box-shadow:inset 0 0 0 2px var(--ink);background:color-mix(in srgb,var(--ink) 10%,transparent)}
+.form{margin-top:18px;padding:18px;border-radius:var(--r-lg);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 14%,transparent)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px;margin:18px 0 12px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:color-mix(in srgb,var(--ink) 16%,transparent)}
+.home .layers{margin:14px 0 0}
+.home details{margin-top:24px}

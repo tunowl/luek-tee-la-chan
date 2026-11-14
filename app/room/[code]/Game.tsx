@@ -29,12 +29,13 @@ async function api<T>(url: string, init?: RequestInit): Promise<{ ok: boolean; s
 const post = (url: string, body: unknown) =>
   api<Record<string, unknown>>(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-// สีพื้นหลังของหน้า (ใช้ธีม 3 ระดับที่มีอยู่แล้ว)
-function themeFor(v: AnyView | null): string {
-  if (!v || v.phase === "lobby") return "1";
-  if (v.game === "wolf") return v.phase === "night" ? "3" : v.phase === "day" ? "1" : "2";
-  if (v.game === "letter" || v.game === "spy") return "2";
-  return String((v as GameView).level + 1);
+// ธีมของหน้า: ลึกทีละชั้นใช้สีทะเล 3 ระดับ เกมอื่นใช้ธีมมินิมอลของตัวเอง
+function themeFor(v: AnyView | null): { theme: string; level: string } {
+  if (!v) return { theme: "home", level: "1" };
+  if (v.game === "wolf") return { theme: v.phase === "night" ? "wolf-night" : v.phase === "lobby" ? "wolf-night" : "wolf-day", level: "1" };
+  if (v.game === "letter") return { theme: "letter", level: "1" };
+  if (v.game === "spy") return { theme: "spy", level: "1" };
+  return { theme: "sea", level: v.phase === "lobby" ? "1" : String((v as GameView).level + 1) };
 }
 
 export default function Game({ code }: { code: string }) {
@@ -149,7 +150,10 @@ export default function Game({ code }: { code: string }) {
   // โหลดข้อความคำถามไว้ล่วงหน้าตั้งแต่อยู่ห้องรอ การ์ดจะขึ้นทันทีตอนเริ่มเกม
   const isLth = v?.game === "lth";
   useEffect(() => { if (isLth) loadQuestionTexts().catch(() => {}); }, [isLth]);
-  useEffect(() => { document.body.dataset.level = theme; }, [theme]);
+  useEffect(() => {
+    document.body.dataset.level = theme.level;
+    document.body.dataset.theme = theme.theme;
+  }, [theme.level, theme.theme]);
 
   // บอกเครื่องอื่นในห้องว่ามีเวอร์ชันใหม่ (ไม่มีข้อมูลเกมในสัญญาณ แค่เลขเวอร์ชัน)
   function bump(v: number) {

@@ -79,6 +79,7 @@ export default function Home() {
 
   useEffect(() => {
     document.body.dataset.level = "1";
+    document.body.dataset.theme = "home";
     setName(lastName());
   }, []);
 
@@ -107,13 +108,16 @@ export default function Home() {
 
   const G = GAMES[game];
   return (
-    <main className="wrap">
-      <h1 className="title"><span>ลึก</span><span>ทีละ</span><span>ชั้น</span></h1>
-      <p className="lede">เกมเล่นกับเพื่อน ทุกคนเล่นจากโทรศัพท์ของตัวเอง แค่เลือกเกม สร้างห้อง แล้วส่งลิงก์ให้เพื่อน</p>
+    <main className="wrap home">
+      <header className="home-head">
+        <h1 className="brand"><span>ลึก</span><span>ทีละ</span><span>ชั้น</span></h1>
+        <p className="lede">เกมเล่นกับเพื่อน ทุกคนเล่นจากโทรศัพท์ของตัวเอง เลือกเกม สร้างห้อง แล้วส่งลิงก์ให้เพื่อน</p>
+      </header>
 
-      <div className="games" role="radiogroup" aria-label="เลือกเกม">
+      <h2 className="sec" id="pick">เลือกเกม</h2>
+      <div className="games" role="radiogroup" aria-labelledby="pick">
         {GAME_KINDS.map((k) => (
-          <button key={k} className={`game ${game === k ? "on" : ""}`} role="radio" aria-checked={game === k} onClick={() => setGame(k)}>
+          <button key={k} data-g={k} className={`game ${game === k ? "on" : ""}`} role="radio" aria-checked={game === k} onClick={() => setGame(k)}>
             <b>{GAMES[k].name}</b>
             <span>{GAMES[k].desc}</span>
             <em>{GAMES[k].short} · {GAMES[k].players}</em>
@@ -128,23 +132,21 @@ export default function Home() {
           ))}
         </div>
       )}
-      <div className="stack">
-        <div>
-          <label className="lb" htmlFor="nm">ชื่อของคุณในวง</label>
-          <input className="txt" id="nm" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น มิ้นท์" />
+
+      <section className="form" aria-label="สร้างหรือเข้าห้อง">
+        <label className="lb" htmlFor="nm">ชื่อของคุณในวง</label>
+        <input className="txt" id="nm" maxLength={20} value={name} onChange={(e) => setName(e.target.value)} placeholder="เช่น มิ้นท์" autoComplete="nickname" />
+        <button className="btn" style={{ marginTop: 12 }} onClick={create} disabled={busy}>{busy ? "กำลังสร้างห้อง…" : `สร้างห้อง${G.name}`}</button>
+        <p className="or">หรือเข้าห้องของเพื่อน (เกมไหนก็ได้)</p>
+        <div className="row">
+          <input className="txt" id="jc" aria-label="รหัสห้อง" maxLength={CODE_LEN} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder={`รหัส ${CODE_LEN} ตัว`} autoCapitalize="characters" autoComplete="off" style={{ letterSpacing: ".15em" }}
+            onKeyDown={(e) => e.key === "Enter" && join()} />
+          <button className="btn ghost" onClick={join}>เข้าห้อง</button>
         </div>
-        <button className="btn" onClick={create} disabled={busy}>{busy ? "กำลังสร้างห้อง…" : `สร้างห้อง${G.name}`}</button>
-        <div>
-          <label className="lb" htmlFor="jc">หรือเข้าห้องของเพื่อน (เกมไหนก็ได้)</label>
-          <div className="row">
-            <input className="txt" id="jc" maxLength={CODE_LEN} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder={`รหัส ${CODE_LEN} ตัว`} autoCapitalize="characters" style={{ letterSpacing: ".15em" }}
-              onKeyDown={(e) => e.key === "Enter" && join()} />
-            <button className="btn ghost" onClick={join}>เข้าห้อง</button>
-          </div>
-        </div>
-      </div>
-      {err && <p className="note" role="alert">{err}</p>}
+        {err && <p className="note" role="alert">{err}</p>}
+      </section>
+
       <details>
         <summary>วิธีเล่น{G.name}</summary>
         <Rules game={game} />
