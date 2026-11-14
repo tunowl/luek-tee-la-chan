@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CODE_LEN, CODE_RE, LEVELS, lastName, saveName } from "@/lib/ui";
-import { NEED_FRONT, SPECIALS } from "@/lib/engine";
+import { DECKS, DECK_KEYS, NEED_FRONT, SPECIALS } from "@/lib/engine";
 import { GAMES, GAME_KINDS, type GameKind } from "@/lib/games";
 import { ROLES, ROLE_ORDER } from "@/lib/wolf";
 import { LCARDS } from "@/lib/letter";
@@ -52,13 +52,16 @@ function Rules({ game }: { game: GameKind }) {
     <>
       <ol>
         <li>ทุกคนได้การ์ดคำถาม 5 ใบ และการ์ด<b>ผ่าน</b> 1 ใบ</li>
-        <li>ถึงตาใคร ให้เลือกการ์ดคำถามหนึ่งใบ แล้วเลือกคนที่จะถาม</li>
+        <li>ถึงตาใคร ให้เลือกการ์ดคำถามหนึ่งใบ แล้วเลือกคนที่จะถาม (ห้ามถามคนที่เพิ่งถูกถามไปตาที่แล้ว ยกเว้นใช้การ์ดพิเศษ)</li>
         <li>คนถูกถามตอบ หรือใช้การ์ดผ่านได้โดยไม่ต้องอธิบาย การ์ดที่ตอบแล้วจะไปวางตรงหน้าคนตอบ</li>
         <li>การ์ดคำถามทุกใบมีเชือกหนึ่งในหกสี ใครได้การ์ดที่มีเชือก<b>สีที่วงยังไม่มี</b>ในชั้นนี้ จะได้การ์ดพิเศษเพิ่ม 1 ใบ</li>
         <li>วงดำลงชั้นถัดไปเมื่อ<b>การ์ดตรงหน้าทุกคนรวมกันมีเชือกครบ 6 สี</b> หรือ<b>ทุกคนมีการ์ดตรงหน้าครบ {NEED_FRONT} ใบ</b></li>
         <li>จบชั้นก้นทะเลเมื่อไหร่ ก็จบรอบ</li>
-        <li>เจ้าของห้องเปิด<b>โหมดทะลึ่ง 18+</b> ได้ในห้องรอ จะมีคำถามเรื่องรัก ๆ ใคร่ ๆ อีก 50 ข้อปนเข้ามา ขำ ๆ ที่ผิวน้ำ แล้วลึกขึ้นทีละชั้น</li>
+        <li>ก่อนเริ่ม เจ้าของห้องเลือก<b>สำรับ</b>ได้ ผสมกันได้หลายสำรับ เช่น ธรรมดา + คู่รัก</li>
       </ol>
+      <ul className="muted">
+        {DECK_KEYS.map((k) => <li key={k}><b>สำรับ{DECKS[k].name}</b> (147 ข้อ): {DECKS[k].desc}</li>)}
+      </ul>
       <ul className="muted">
         {Object.values(SPECIALS).map((s) => <li key={s.name}><b>{s.name}</b>: {s.how}</li>)}
       </ul>

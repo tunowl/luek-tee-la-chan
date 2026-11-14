@@ -7,8 +7,16 @@ export const MAX_PLAYERS = 6;
 export const ROPE_COUNT = 6;
 
 export type Special = "buddy" | "double" | "all";
-export type QRef = { id: number; rope: number; sp?: boolean }; // sp = คำถามโหมดทะลึ่ง 18+
-export type QCard = { kind: "q"; id: number; lv: number; rope: number; sp?: boolean };
+// สำรับคำถาม เจ้าของห้องเลือกผสมกันได้ก่อนเริ่มรอบ
+export type DeckKey = "normal" | "spicy" | "couple";
+export const DECK_KEYS: DeckKey[] = ["normal", "spicy", "couple"];
+export const DECKS: Record<DeckKey, { name: string; desc: string }> = {
+  normal: { name: "ธรรมดา", desc: "ความสัมพันธ์ ความชอบ ความคิด ครอบครัว เพื่อน สังคม (สีเชือกบอกหมวด)" },
+  spicy: { name: "18+", desc: "เรื่องรัก ๆ ใคร่ ๆ ขำ ๆ ที่ผิวน้ำ จริงจังขึ้นเมื่อดำลึก เล่นกับผู้ใหญ่ที่สนิทกันเท่านั้น" },
+  couple: { name: "คู่รัก", desc: "คำถามสำหรับคู่รัก ถามกันเองหรือถามคู่อื่นในวง" },
+};
+export type QRef = { id: number; rope: number; deck?: DeckKey }; // ไม่มี deck = ธรรมดา
+export type QCard = { kind: "q"; id: number; lv: number; rope: number; deck?: DeckKey };
 export type SCard = { kind: "s"; s: Special };
 export type Card = QCard | SCard;
 
@@ -48,7 +56,9 @@ export type GameState = {
   events: GameEvent[];
   eventSeq: number;
   locked: boolean; // ปิดรับคนเข้าห้องเพิ่ม
-  spicy?: boolean; // โหมดทะลึ่ง 18+
+  sets?: DeckKey[]; // สำรับที่เลือก (ไม่มี = ธรรมดา)
+  lastAsked?: string[]; // คนที่ถูกเลือกถามในตาที่แล้ว ตาถัดไปเลือกซ้ำไม่ได้ ยกเว้นใช้การ์ดพิเศษ
+  spicy?: boolean; // ช่องเก่าของห้องที่สร้างก่อนมีสำรับ
 };
 
 export type Pools = QRef[][]; // คำถามทั้งหมดของแต่ละระดับ โหลดจาก Supabase
@@ -65,7 +75,7 @@ export type Action =
   | { type: "again" }
   | { type: "kick"; player: number }
   | { type: "lock"; locked: boolean }
-  | { type: "spicy"; on: boolean };
+  | { type: "decks"; decks: DeckKey[] };
 
 export class GameError extends Error {}
 
@@ -92,14 +102,18 @@ function pickSpecial(p: Player, playerCount: number): Special {
   return from[Math.floor(Math.random() * from.length)];
 }
 
-// คำถามทะลึ่งเข้ากองเฉพาะห้องที่เปิดโหมด 18+
-const poolOf = (st: GameState, pools: Pools, lv: number) => pools[lv].filter((q) => st.spicy || !q.sp);
+export const setsOf = (st: { sets?: DeckKey[]; spicy?: boolean }): DeckKey[] =>
+  st.sets && st.sets.length ? st.sets : st.spicy ? ["normal", "spicy"] : ["normal"];
+const poolOf = (st: GameState, pools: Pools, lv: number) => {
+  const sets = setsOf(st);
+  return pools[lv].filter((q) => sets.includes(q.deck ?? "normal"));
+};
 function drawQuestion(st: GameState, pools: Pools): QCard {
   const lv = st.level;
   if (!st.decks[lv] || st.decks[lv].length === 0) st.decks[lv] = shuffle(poolOf(st, pools, lv));
   const q = st.decks[lv].pop();
   if (!q) throw new GameError("ยังไม่มีคำถามในระดับนี้ ตรวจตาราง questions");
-  return q.sp ? { kind: "q", id: q.id, lv, rope: q.rope, sp: true } : { kind: "q", id: q.id, lv, rope: q.rope };
+  return q.deck && q.deck !== "normal" ? { kind: "q", id: q.id, lv, rope: q.rope, deck: q.deck } : { kind: "q", id: q.id, lv, rope: q.rope };
 }
 // การ์ดคำถามในมือเติมให้ครบ 5 ใบเสมอ การ์ดพิเศษไม่กินที่
 function refill(st: GameState, p: Player, pools: Pools) {
@@ -162,7 +176,11 @@ export function addPlayer(st: GameState, id: string, name: string, pools: Pools)
 }
 
 function deal(st: GameState, pools: Pools) {
+  for (const lv of [0, 1, 2]) {
+    if (poolOf(st, pools, lv).length === 0) throw new GameError("สำรับที่เลือกยังไม่มีคำถาม ให้รัน supabase/seed.sql ใหม่");
+  }
   st.level = 0;
+  st.lastAsked = [];
   st.decks = [0, 1, 2].map((lv) => shuffle(poolOf(st, pools, lv)));
   st.current = 0;
   st.pending = null;
@@ -176,9 +194,18 @@ function deal(st: GameState, pools: Pools) {
   st.phase = "play";
 }
 
+/** ตำแหน่งผู้เล่นที่คนในตำแหน่ง asker ถามไม่ได้ในตานี้ (ถ้าไม่เหลือใครให้ถามเลย ก็ไม่ห้าม) */
+export function blockedTargets(st: { players: { id: string }[]; lastAsked?: string[] }, asker: number): number[] {
+  const ids = st.lastAsked ?? [];
+  const others = st.players.map((_, j) => j).filter((j) => j !== asker);
+  const blocked = others.filter((j) => ids.includes(st.players[j].id));
+  return blocked.length >= others.length ? [] : blocked;
+}
+
 function nextLevel(st: GameState, pools: Pools) {
   st.level += 1;
   st.pending = null;
+  st.lastAsked = [];
   st.players.forEach((p) => {
     p.pass = true;
     p.front = [];
@@ -260,7 +287,12 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
         const dbl = !!a.useDouble && hasSpecial(me, "double") && P.length >= 3;
         if (targets.length !== (dbl ? 2 : 1)) throw new GameError(dbl ? "เลือกคนที่จะถาม 2 คน" : "เลือกคนที่จะถาม 1 คน");
         if (dbl) special = "double";
+        // ถามคนที่เพิ่งถูกถามไปในตาที่แล้วไม่ได้ ยกเว้นใช้การ์ดพิเศษ (หรือไม่เหลือคนอื่นให้ถาม)
+        const blocked = blockedTargets(st, i);
+        const hit = targets.find((j) => blocked.includes(j));
+        if (!special && hit !== undefined) throw new GameError(`${P[hit].name} เพิ่งถูกถามไปตาที่แล้ว เลือกคนอื่น หรือใช้การ์ดพิเศษ`);
       }
+      st.lastAsked = special === "all" ? [] : targets.map((j) => P[j].id);
       st.pending = { asker: i, handIndex: a.handIndex, card, targets, res: targets.map(() => 0), buddyUsed: false, special };
       break;
     }
@@ -335,11 +367,15 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
       st.locked = !!a.locked;
       break;
 
-    case "spicy":
+    case "decks": {
       if (!isHost) throw new GameError("เฉพาะเจ้าของห้อง");
-      if (st.phase !== "lobby" && st.phase !== "end") throw new GameError("เปิดปิดโหมดทะลึ่งได้ก่อนเริ่มรอบเท่านั้น");
-      st.spicy = !!a.on;
+      if (st.phase !== "lobby" && st.phase !== "end") throw new GameError("เลือกสำรับได้ก่อนเริ่มรอบเท่านั้น");
+      const ds = DECK_KEYS.filter((k) => a.decks.includes(k));
+      if (!ds.length) throw new GameError("เลือกอย่างน้อย 1 สำรับ");
+      st.sets = ds;
+      delete st.spicy;
       break;
+    }
 
     default:
       throw new GameError("ไม่รู้จักการกระทำนี้");
@@ -358,7 +394,8 @@ export type GameView = {
   hostId: string;
   current: number;
   locked: boolean;
-  spicy: boolean;
+  sets: DeckKey[];
+  lastAsked: string[];
   players: PublicPlayer[];
   pending: Omit<Pending, "handIndex"> | null;
   events: GameEvent[];
@@ -373,7 +410,8 @@ export function toView(st: GameState): GameView {
     hostId: st.hostId,
     current: st.current,
     locked: st.locked,
-    spicy: !!st.spicy,
+    sets: setsOf(st),
+    lastAsked: st.lastAsked ?? [],
     players: st.players.map((p) => ({ id: p.id, name: p.name, pass: p.pass, front: p.front, handCount: p.hand.length })),
     pending: st.pending
       ? { asker: st.pending.asker, card: st.pending.card, targets: st.pending.targets, res: st.pending.res, buddyUsed: st.pending.buddyUsed, special: st.pending.special }

@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "crypto";
 import { supabaseAdmin } from "./supabase-server";
 import { FN, T } from "./db-names";
-import { GameError, type Pools, type QRef } from "./engine";
+import { DECK_KEYS, GameError, type DeckKey, type Pools } from "./engine";
 import { viewAny, type AnyState } from "./games";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000; // ห้องที่ไม่ขยับเกิน 1 วันถือว่าหมดอายุ
@@ -45,11 +45,11 @@ let poolCache: { at: number; pools: Pools } | null = null;
 export async function loadPools(): Promise<Pools> {
   if (poolCache && Date.now() - poolCache.at < 5 * 60_000) return poolCache.pools;
   const q = () => supabaseAdmin().from(T.questions);
-  type Row = { id: number; level: number; rope: number; spicy?: boolean };
-  const first = await q().select("id, level, rope, spicy").eq("active", true);
+  type Row = { id: number; level: number; rope: number; deck?: string };
+  const first = await q().select("id, level, rope, deck").eq("active", true);
   let data: Row[] | null = first.data as Row[] | null;
   let error: { code?: string } | null = first.error;
-  // ยังไม่ได้รัน supabase/spicy.sql (ไม่มีคอลัมน์ spicy) ก็ยังเล่นได้ตามปกติ
+  // ยังไม่ได้รัน seed.sql ชุดใหม่ (ไม่มีคอลัมน์ deck) ก็ยังเล่นได้ ทุกข้อนับเป็นสำรับธรรมดา
   if (error && error.code === "42703") {
     const old = await q().select("id, level, rope").eq("active", true);
     data = old.data as Row[] | null;
@@ -58,9 +58,11 @@ export async function loadPools(): Promise<Pools> {
   if (error) throw error;
   const pools: Pools = [[], [], []];
   for (const r of (data ?? []) as Row[]) {
-    if (r.level >= 0 && r.level <= 2) pools[r.level].push(r.spicy ? { id: r.id, rope: r.rope, sp: true } : { id: r.id, rope: r.rope });
+    if (r.level < 0 || r.level > 2) continue;
+    const deck = (DECK_KEYS as string[]).includes(r.deck ?? "") ? (r.deck as DeckKey) : "normal";
+    pools[r.level].push(deck === "normal" ? { id: r.id, rope: r.rope } : { id: r.id, rope: r.rope, deck });
   }
-  if (pools.some((p) => !p.some((x) => !x.sp))) throw new Error("questions table is missing a level");
+  if (pools.some((p) => p.length === 0)) throw new Error("questions table is missing a level");
   poolCache = { at: Date.now(), pools };
   return pools;
 }

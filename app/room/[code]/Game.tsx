@@ -12,7 +12,7 @@ import type { GameView } from "@/lib/engine";
 import type { WolfView } from "@/lib/wolf";
 import type { LetterView } from "@/lib/letter";
 import type { SpyView } from "@/lib/spy";
-import LthPlay, { SpicyToggle } from "./LthPlay";
+import LthPlay, { DeckPicker } from "./LthPlay";
 import WolfPlay, { WolfLobby } from "./WolfPlay";
 import LetterPlay, { LetterLobby } from "./LetterPlay";
 import SpyPlay, { SpyLobby } from "./SpyPlay";
@@ -51,6 +51,8 @@ export default function Game({ code }: { code: string }) {
   const versionRef = useRef(0);
   const meVersion = useRef(0);
   const meInflight = useRef<number | null>(null);
+  const chRef = useRef<RealtimeChannel | null>(null);
+  const lastLive = useRef(0); // เวลาล่าสุดที่ได้อัปเดตสดจาก Realtime
 
   const accept = useCallback((r: Room) => {
     if (r.version >= versionRef.current) {
@@ -100,8 +102,13 @@ export default function Game({ code }: { code: string }) {
     const ch: RealtimeChannel = sb.channel(`room-${code}`, { config: { presence: { key } } });
     ch.on("postgres_changes", { event: "UPDATE", schema: "public", table: T.roomViews, filter: `code=eq.${code}` }, (payload) => {
       const n = payload.new as { view: AnyView; version: number };
-      if (n && n.view) accept({ view: n.view, version: n.version });
+      if (n && n.view) { lastLive.current = Date.now(); accept({ view: n.view, version: n.version }); }
     })
+      // สัญญาณจากเครื่องที่เพิ่งกด: มีเวอร์ชันใหม่ ให้ดึงห้องใหม่ (ไม่พึ่งการตั้งค่า Realtime ของตาราง)
+      .on("broadcast", { event: "bump" }, (msg) => {
+        const v = Number((msg as { payload?: { v?: number } }).payload?.v ?? 0);
+        if (v > versionRef.current) { lastLive.current = Date.now(); fetchView(); }
+      })
       .on("presence", { event: "sync" }, () => setOnline(new Set(Object.keys(ch.presenceState()))))
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -109,12 +116,19 @@ export default function Game({ code }: { code: string }) {
           fetchView();
         }
       });
-    const poll = setInterval(fetchView, 60000); // สำรองเผื่อ Realtime หลุด ปกติไม่จำเป็น
+    chRef.current = ch;
+    // สำรองเผื่อ Realtime หลุด: เช็กทุก 4 วินาทีตอนเปิดหน้าอยู่ ถ้าเพิ่งได้อัปเดตสดก็เว้นไปก่อน
+    const poll = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastLive.current < 20000) return;
+      fetchView();
+    }, 4000);
     const onVis = () => document.visibilityState === "visible" && fetchView();
     document.addEventListener("visibilitychange", onVis);
     return () => {
       clearInterval(poll);
       document.removeEventListener("visibilitychange", onVis);
+      if (chRef.current === ch) chRef.current = null;
       sb.removeChannel(ch);
     };
   }, [validCode, code, myId, fetchView, accept]);
@@ -136,6 +150,11 @@ export default function Game({ code }: { code: string }) {
   useEffect(() => { if (isLth) loadQuestionTexts().catch(() => {}); }, [isLth]);
   useEffect(() => { document.body.dataset.level = theme; }, [theme]);
 
+  // บอกเครื่องอื่นในห้องว่ามีเวอร์ชันใหม่ (ไม่มีข้อมูลเกมในสัญญาณ แค่เลขเวอร์ชัน)
+  function bump(v: number) {
+    chRef.current?.send({ type: "broadcast", event: "bump", payload: { v } }).catch(() => {});
+  }
+
   async function send(action: AnyAction) {
     if (busy) return;
     setBusy(true);
@@ -154,6 +173,7 @@ export default function Game({ code }: { code: string }) {
     if (typeof d.version === "number" && d.view && d.priv && myId) {
       accept({ view: d.view, version: d.version });
       acceptMe({ playerId: myId, priv: d.priv, version: d.version });
+      bump(d.version);
     } else {
       fetchView();
       fetchMe();
@@ -169,7 +189,8 @@ export default function Game({ code }: { code: string }) {
     if (!r || !r.ok) return setErr(r?.data.error || "เข้าห้องไม่สำเร็จ");
     saveName(name.trim());
     await fetchMe();
-    fetchView();
+    await fetchView();
+    bump(versionRef.current);
   }
 
   async function leave() {
@@ -259,7 +280,7 @@ export default function Game({ code }: { code: string }) {
         </div>
         {v.game === "wolf" && <WolfLobby ctx={ctx} v={v} />}
         {v.game === "letter" && <LetterLobby v={v} />}
-        {v.game === "lth" && <SpicyToggle ctx={ctx} on={(v as GameView).spicy} />}
+        {v.game === "lth" && <DeckPicker ctx={ctx} sets={(v as GameView).sets ?? ["normal"]} />}
         {v.game === "spy" && <SpyLobby ctx={ctx} v={v} />}
         {isHost && (
           <label className="toggle"><input type="checkbox" checked={v.locked} onChange={() => send({ type: "lock", locked: !v.locked })} />

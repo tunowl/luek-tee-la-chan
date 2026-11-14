@@ -12,7 +12,7 @@ create table if not exists public.lth_questions (
   rope    smallint not null check (rope between 0 and 5),
   text    text not null check (char_length(text) between 1 and 300),
   active  boolean not null default true,
-  spicy   boolean not null default false  -- คำถามโหมดทะลึ่ง 18+ (supabase/spicy.sql)
+  deck    text not null default 'normal' check (deck in ('normal', 'spicy', 'couple'))  -- สำรับคำถาม
 );
 create index if not exists lth_questions_level_idx on public.lth_questions (level) where active;
 

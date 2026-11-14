@@ -8,7 +8,7 @@ export type GameKind = "lth" | "wolf" | "letter" | "spy";
 export const GAME_KINDS: GameKind[] = ["lth", "wolf", "letter", "spy"];
 
 export const GAMES: Record<GameKind, { name: string; short: string; desc: string; min: number; max: number; players: string }> = {
-  lth: { name: "ลึกทีละชั้น", short: "การ์ดชวนคุย", desc: "การ์ดคำถาม 147 ใบ สามระดับ ค่อย ๆ คุยลึกขึ้นทีละชั้น", min: 2, max: LTH_MAX, players: "2–6 คน" },
+  lth: { name: "ลึกทีละชั้น", short: "การ์ดชวนคุย", desc: "การ์ดคำถามสามระดับ ค่อย ๆ คุยลึกขึ้นทีละชั้น เลือกสำรับธรรมดา 18+ หรือคู่รัก ผสมกันได้", min: 2, max: LTH_MAX, players: "2–6 คน" },
   wolf: { name: "มนุษย์หมาป่า", short: "เกมจับผิด", desc: "หมาป่าแฝงตัวในหมู่บ้าน กลางคืนล่า กลางวันโหวตหาตัว เจ้าของห้องเป็นผู้ดำเนินเกม", min: WOLF_MIN + 1, max: WOLF_MAX, players: `${WOLF_MIN}–${WOLF_MAX - 1} คน + ผู้ดำเนินเกม` },
   spy: { name: "สายลับในวง", short: "เกมจับโกหก", desc: "ทุกคนรู้ว่าอยู่ที่ไหน ยกเว้นสายลับ ถามตอบกันให้จับได้ก่อนเขาเดาสถานที่ออก", min: SPY_MIN, max: SPY_MAX, players: `${SPY_MIN}–${SPY_MAX} คน` },
   letter: { name: "จดหมายลับ", short: "เกมไพ่", desc: "ส่งจดหมายถึงเจ้าหญิงให้ถึงมือ ไพ่ 21 ใบ ถือทีละใบ เดา หลบ และหักหลัง", min: LETTER_MIN, max: LETTER_MAX, players: "2–6 คน" },

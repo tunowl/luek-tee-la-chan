@@ -2,15 +2,32 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadQuestionTexts } from "@/lib/questions-client";
 import { LEVELS, ROPES } from "@/lib/ui";
-import { NEED_FRONT, SPECIALS, tableRopes, type Card, type GameEvent, type GameView, type QCard, type Special } from "@/lib/engine";
+import { NEED_FRONT, SPECIALS, tableRopes, type Card, type GameEvent, type GameView, type QCard, type Special, type DeckKey, DECKS, DECK_KEYS, blockedTargets } from "@/lib/engine";
 import { cssVar, type Ctx } from "./shared";
 
-// สวิตช์โหมดทะลึ่ง 18+ (ห้องรอ และหน้าจบรอบ)
-export function SpicyToggle({ ctx, on }: { ctx: Ctx; on: boolean }) {
-  if (!ctx.isHost) return on ? <p className="note">ห้องนี้เปิดโหมดทะลึ่ง 18+ มีคำถามเรื่องรัก ๆ ใคร่ ๆ ปนอยู่ทุกชั้น ไม่สบายใจข้อไหนใช้การ์ดผ่านได้</p> : null;
+// เลือกสำรับคำถาม (ห้องรอ และหน้าจบรอบ) เลือกได้หลายสำรับ ผสมกัน
+export function DeckPicker({ ctx, sets }: { ctx: Ctx; sets: DeckKey[] }) {
+  const toggle = (k: DeckKey) => {
+    const next = sets.includes(k) ? sets.filter((x) => x !== k) : [...sets, k];
+    if (next.length) ctx.send({ type: "decks", decks: next });
+  };
   return (
-    <label className="toggle"><input type="checkbox" checked={on} disabled={ctx.busy} onChange={() => ctx.send({ type: "spicy", on: !on })} />
-      <span>เปิด<b>โหมดทะลึ่ง 18+</b> เพิ่มคำถามเรื่องรัก ๆ ใคร่ ๆ 50 ข้อ ขำ ๆ ที่ผิวน้ำ แล้วจริงจังขึ้นเมื่อดำลึก (เล่นกับผู้ใหญ่ที่สนิทกันเท่านั้น)</span></label>
+    <div className="panel">
+      <h3>สำรับคำถาม{ctx.isHost ? " (เลือกได้หลายสำรับ ผสมกัน)" : ""}</h3>
+      {ctx.isHost ? (
+        <div className="decks">
+          {DECK_KEYS.map((k) => (
+            <button key={k} className={`deck ${sets.includes(k) ? "on" : ""}`} aria-pressed={sets.includes(k)} disabled={ctx.busy}
+              onClick={() => toggle(k)}>
+              <b>{DECKS[k].name}</b><span>{DECKS[k].desc}</span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p>{sets.map((k) => DECKS[k].name).join(" + ")}</p>
+      )}
+      {sets.includes("spicy") && !ctx.isHost && <p className="muted small" style={{ marginTop: 6 }}>มีคำถาม 18+ ปนอยู่ ไม่สบายใจข้อไหนใช้การ์ดผ่านได้</p>}
+    </div>
   );
 }
 
@@ -76,7 +93,7 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
               : `${next.desc} การ์ดคำถามในมือจะเปลี่ยนเป็นของชั้นใหม่ การ์ดพิเศษเก็บไว้ได้ และทุกคนได้การ์ดผ่านคืน 1 ใบ`}
           </p>
           {end
-            ? isHost ? <><SpicyToggle ctx={ctx} on={v.spicy} /><button className="btn" style={{ marginTop: 14 }} onClick={() => send({ type: "again" })} disabled={busy}>เล่นอีกรอบ</button></> : <p className="muted center">รอเจ้าของห้องเริ่มรอบใหม่</p>
+            ? isHost ? <><DeckPicker ctx={ctx} sets={v.sets} /><button className="btn" style={{ marginTop: 14 }} onClick={() => send({ type: "again" })} disabled={busy}>เล่นอีกรอบ</button></> : <p className="muted center">รอเจ้าของห้องเริ่มรอบใหม่</p>
             : <button className="btn" onClick={() => send({ type: "next" })} disabled={busy}>ดำลงไป</button>}
           {notes}
         </div>
@@ -88,7 +105,7 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
   const q = v.pending;
   const cur = v.players[v.current];
   const ropeTag = (c: QCard) => (
-    <span className="rope" style={cssVar("--rc", ROPES[c.rope].c)}><i />&nbsp;เชือก{ROPES[c.rope].n}{!ropes.has(c.rope) && " · สีใหม่"}{c.sp && " · 18+"}</span>
+    <span className="rope" style={cssVar("--rc", ROPES[c.rope].c)}><i />&nbsp;เชือก{ROPES[c.rope].n}{!ropes.has(c.rope) && " · สีใหม่"}{c.deck && ` · ${DECKS[c.deck].name}`}</span>
   );
   const cardView = (c: Card, i: number, clickable: boolean) =>
     c.kind === "s" ? (
@@ -164,7 +181,10 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
     const need = sel.all ? 0 : sel.dbl ? 2 : 1;
     const picked = sel.hi !== null ? hand[sel.hi] : undefined;
     const ok = !!picked && picked.kind === "q" && (sel.all || sel.targets.length === need);
+    // คนที่เพิ่งถูกถามตาที่แล้ว เลือกไม่ได้ ยกเว้นใช้การ์ดพิเศษ
+    const blocked = sel.dbl ? [] : blockedTargets(v, myI);
     const toggleTarget = (j: number) => {
+      if (blocked.includes(j)) return;
       let t = sel.targets.includes(j) ? sel.targets.filter((x) => x !== j) : [...sel.targets, j];
       if (t.length > (sel.dbl ? 2 : 1)) t = t.slice(1);
       setSel({ ...sel, targets: t });
@@ -180,14 +200,23 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
               <>
                 <div className="chips">
                   {v.players.map((o, j) => j === myI ? null : (
-                    <button key={o.id} className={`chip ${sel.targets.includes(j) ? "on" : ""}`} onClick={() => toggleTarget(j)}>{o.name} · {o.front.length}</button>
+                    <button key={o.id} className={`chip ${sel.targets.includes(j) ? "on" : ""}`} disabled={blocked.includes(j)} onClick={() => toggleTarget(j)}>{o.name} · {o.front.length}{blocked.includes(j) && " · เพิ่งถูกถาม"}</button>
                   ))}
                 </div>
                 <p className="muted small" style={{ marginTop: 8 }}>ตัวเลขคือจำนวนการ์ดที่อยู่ตรงหน้าแต่ละคนในชั้นนี้</p>
+                {blocked.length > 0 && (
+                  <p className="muted small" style={{ marginTop: 4 }}>
+                    {blocked.map((j) => v.players[j].name).join(", ")} เพิ่งถูกถามไปตาที่แล้ว ถามซ้ำไม่ได้{hasD || hasA ? " ยกเว้นใช้การ์ดเพิ่มคนหรือทั้งวง" : ""}
+                  </p>
+                )}
               </>
             )}
             {hasD && !sel.all && (
-              <label className="toggle"><input type="checkbox" checked={sel.dbl} onChange={() => setSel({ ...sel, dbl: !sel.dbl, targets: sel.dbl ? sel.targets.slice(-1) : sel.targets })} />
+              <label className="toggle"><input type="checkbox" checked={sel.dbl} onChange={() => {
+                const off = sel.dbl;
+                const bl = blockedTargets(v, myI);
+                setSel({ ...sel, dbl: !off, targets: off ? sel.targets.filter((j) => !bl.includes(j)).slice(-1) : sel.targets });
+              }} />
                 <span>ใช้การ์ด<b>เพิ่มคน</b> ถามสองคนพร้อมกัน</span></label>
             )}
             {hasA && (

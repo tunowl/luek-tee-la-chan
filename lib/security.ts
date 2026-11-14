@@ -111,7 +111,14 @@ export function parseAction(raw: unknown): AnyAction {
     case "buddy": return { type: "buddy", to: int(a.to, 5) };
     case "kick": return { type: "kick", player: int(a.player, 15) };
     case "lock": return { type: "lock", locked: bool(a.locked) };
-    case "spicy": return { type: "spicy", on: bool(a.on) };
+    case "decks": {
+      if (!Array.isArray(a.decks) || a.decks.length < 1 || a.decks.length > 3) throw new GameError("คำขอไม่ถูกต้อง");
+      const ds = a.decks.map((d) => {
+        if (d !== "normal" && d !== "spicy" && d !== "couple") throw new GameError("คำขอไม่ถูกต้อง");
+        return d as "normal" | "spicy" | "couple";
+      });
+      return { type: "decks", decks: ds };
+    }
     /* มนุษย์หมาป่า */
     case "settings":
       return { type: "settings", auto: bool(a.auto), wolves: Math.max(1, int(a.wolves, 5)), seer: bool(a.seer), doctor: bool(a.doctor), hunter: bool(a.hunter) };
