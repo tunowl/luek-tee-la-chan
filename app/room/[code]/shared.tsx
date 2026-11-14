@@ -10,7 +10,7 @@ export type Ctx = {
   isHost: boolean;
   busy: boolean;
   online: Set<string>;
-  send: (a: AnyAction) => Promise<void>;
+  send: (a: AnyAction) => Promise<boolean>; // true = เซิร์ฟเวอร์รับแล้ว
   bar: (label: ReactNode) => ReactNode;
   errNote: ReactNode;
 };

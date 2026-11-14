@@ -7,9 +7,19 @@ import { cssVar, type Ctx } from "./shared";
 
 // เลือกสำรับคำถาม (ห้องรอ และหน้าจบรอบ) เลือกได้หลายสำรับ ผสมกัน
 export function DeckPicker({ ctx, sets }: { ctx: Ctx; sets: DeckKey[] }) {
+  // แตะแล้วเปลี่ยนบนจอทันที ไม่ต้องรอเซิร์ฟเวอร์ (คำขอเข้าคิวส่งตามลำดับ)
+  const [draft, setDraft] = useState<DeckKey[] | null>(null);
+  const same = (a: DeckKey[], b: DeckKey[]) => a.length === b.length && a.every((k) => b.includes(k));
+  const shown = draft ?? sets;
+  // เซิร์ฟเวอร์ยืนยันตรงกับที่เลือกแล้ว ก็เลิกใช้ค่าชั่วคราว
+  useEffect(() => { if (draft && same(draft, sets)) setDraft(null); }, [sets]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggle = (k: DeckKey) => {
-    const next = sets.includes(k) ? sets.filter((x) => x !== k) : [...sets, k];
-    if (next.length) ctx.send({ type: "decks", decks: next });
+    const next = DECK_KEYS.filter((x) => (x === k ? !shown.includes(x) : shown.includes(x)));
+    if (!next.length) return; // ต้องมีอย่างน้อย 1 สำรับ
+    setDraft(next);
+    // ส่งไม่ผ่าน: กลับไปใช้ค่าจากเซิร์ฟเวอร์
+    ctx.send({ type: "decks", decks: next }).then((ok) => { if (!ok) setDraft((d) => (d && same(d, next) ? null : d)); });
   };
   return (
     <div className="panel">
@@ -17,7 +27,7 @@ export function DeckPicker({ ctx, sets }: { ctx: Ctx; sets: DeckKey[] }) {
       {ctx.isHost ? (
         <div className="decks">
           {DECK_KEYS.map((k) => (
-            <button key={k} className={`deck ${sets.includes(k) ? "on" : ""}`} aria-pressed={sets.includes(k)} disabled={ctx.busy}
+            <button key={k} className={`deck ${shown.includes(k) ? "on" : ""}`} aria-pressed={shown.includes(k)}
               onClick={() => toggle(k)}>
               <b>{DECKS[k].name}</b><span>{DECKS[k].desc}</span>
             </button>

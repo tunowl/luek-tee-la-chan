@@ -155,29 +155,44 @@ export default function Game({ code }: { code: string }) {
     chRef.current?.send({ type: "broadcast", event: "bump", payload: { v } }).catch(() => {});
   }
 
-  async function send(action: AnyAction) {
-    if (busy) return;
+  // ส่งการกระทำแบบเข้าคิว: แตะติดกันหลายครั้งก็ส่งครบตามลำดับ ไม่ถูกทิ้ง
+  // คำขอที่เหมือนกันเป๊ะซึ่งยังรออยู่ในคิว (เช่นกดปุ่มเดิมซ้ำ) จะไม่ส่งซ้ำ
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const inFlight = useRef<Map<string, Promise<boolean>>>(new Map());
+  function send(action: AnyAction): Promise<boolean> {
+    const key = JSON.stringify(action);
+    const dup = inFlight.current.get(key);
+    if (dup) return dup;
+    const run = async (): Promise<boolean> => {
+      setErr("");
+      const r = await post(`/api/rooms/${code}/action`, { action }).catch(() => null);
+      if (!r) { setErr("เชื่อมต่อไม่ได้ ลองอีกครั้ง"); return false; }
+      if (!r.ok) {
+        setErr(r.data.error || "ส่งไม่สำเร็จ ลองอีกครั้ง");
+        if (r.status === 401) { meVersion.current = 0; setMe(null); setMeState("out"); }
+        fetchMe();
+        return false;
+      }
+      // ใช้ผลที่เซิร์ฟเวอร์ส่งกลับมาเลย ไม่ต้องรอ Realtime
+      const d = r.data as { version?: number; view?: AnyView; priv?: AnyPrivate };
+      if (typeof d.version === "number" && d.view && d.priv && myId) {
+        accept({ view: d.view, version: d.version });
+        acceptMe({ playerId: myId, priv: d.priv, version: d.version });
+        bump(d.version);
+      } else {
+        fetchView();
+        fetchMe();
+      }
+      return true;
+    };
     setBusy(true);
-    setErr("");
-    const r = await post(`/api/rooms/${code}/action`, { action }).catch(() => null);
-    setBusy(false);
-    if (!r) return setErr("เชื่อมต่อไม่ได้ ลองอีกครั้ง");
-    if (!r.ok) {
-      setErr(r.data.error || "ส่งไม่สำเร็จ ลองอีกครั้ง");
-      if (r.status === 401) { meVersion.current = 0; setMe(null); setMeState("out"); }
-      fetchMe();
-      return;
-    }
-    // ใช้ผลที่เซิร์ฟเวอร์ส่งกลับมาเลย ไม่ต้องรอ Realtime
-    const d = r.data as { version?: number; view?: AnyView; priv?: AnyPrivate };
-    if (typeof d.version === "number" && d.view && d.priv && myId) {
-      accept({ view: d.view, version: d.version });
-      acceptMe({ playerId: myId, priv: d.priv, version: d.version });
-      bump(d.version);
-    } else {
-      fetchView();
-      fetchMe();
-    }
+    const p = queue.current.then(run, run).finally(() => {
+      inFlight.current.delete(key);
+      if (inFlight.current.size === 0) setBusy(false);
+    });
+    inFlight.current.set(key, p);
+    queue.current = p;
+    return p;
   }
 
   async function join() {
