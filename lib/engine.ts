@@ -64,7 +64,7 @@ export type GameState = {
 export type Pools = QRef[][]; // คำถามทั้งหมดของแต่ละระดับ โหลดจาก Supabase
 
 export type Action =
-  | { type: "start" }
+  | { type: "start"; decks?: DeckKey[] } // สำรับที่เจ้าของห้องเลือกไว้ ส่งมาพร้อมตอนกดเริ่ม
   | { type: "ask"; handIndex: number; cardId?: number; targets: number[]; useDouble?: boolean; useAll?: boolean }
   | { type: "answer" }
   | { type: "pass" }
@@ -72,7 +72,7 @@ export type Action =
   | { type: "skip" }
   | { type: "deeper" }
   | { type: "next" }
-  | { type: "again" }
+  | { type: "again"; decks?: DeckKey[] }
   | { type: "kick"; player: number }
   | { type: "lock"; locked: boolean }
   | { type: "decks"; decks: DeckKey[] };
@@ -175,6 +175,14 @@ export function addPlayer(st: GameState, id: string, name: string, pools: Pools)
   return s;
 }
 
+function chooseSets(st: GameState, decks: DeckKey[] | undefined) {
+  if (!decks) return;
+  const ds = DECK_KEYS.filter((k) => decks.includes(k));
+  if (!ds.length) throw new GameError("เลือกอย่างน้อย 1 สำรับ");
+  st.sets = ds;
+  delete st.spicy;
+}
+
 function deal(st: GameState, pools: Pools) {
   for (const lv of [0, 1, 2]) {
     if (poolOf(st, pools, lv).length === 0) throw new GameError("สำรับที่เลือกยังไม่มีคำถาม ให้รัน supabase/seed.sql ใหม่");
@@ -267,6 +275,7 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
       if (!isHost) throw new GameError("เฉพาะเจ้าของห้องที่เริ่มเกมได้");
       if (st.phase !== "lobby") throw new GameError("เกมเริ่มไปแล้ว");
       if (P.length < 2) throw new GameError("ต้องมีผู้เล่นอย่างน้อย 2 คน");
+      chooseSets(st, a.decks);
       deal(st, pools);
       break;
 
@@ -347,6 +356,7 @@ export function applyAction(prev: GameState, playerId: string, a: Action, pools:
     case "again":
       if (!isHost) throw new GameError("เฉพาะเจ้าของห้อง");
       if (st.phase !== "end") throw new GameError("รอบนี้ยังไม่จบ");
+      chooseSets(st, a.decks);
       deal(st, pools);
       break;
 

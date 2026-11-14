@@ -96,12 +96,23 @@ const pid = (v: unknown): string => {
 const pidOrNull = (v: unknown): string | null => (v === null || v === undefined ? null : pid(v));
 const intOrNull = (v: unknown, max: number): number | null => (v === null || v === undefined ? null : int(v, max));
 
+function parseDecks(v: unknown): ("normal" | "spicy" | "couple")[] {
+  if (!Array.isArray(v) || v.length < 1 || v.length > 3) throw new GameError("คำขอไม่ถูกต้อง");
+  return v.map((d) => {
+    if (d !== "normal" && d !== "spicy" && d !== "couple") throw new GameError("คำขอไม่ถูกต้อง");
+    return d as "normal" | "spicy" | "couple";
+  });
+}
+
 // รูปแบบของทุกเกมรวมกัน แต่ละเกมตรวจอีกชั้นว่าเป็นการกระทำของเกมตัวเองหรือไม่
 export function parseAction(raw: unknown): AnyAction {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new GameError("คำขอไม่ถูกต้อง");
   const a = raw as Record<string, unknown>;
   switch (a.type) {
-    case "start": case "answer": case "pass": case "skip": case "deeper": case "next": case "again":
+    case "start": case "again":
+      // ลึกทีละชั้นส่งสำรับที่เลือกมาด้วย เกมอื่นไม่มี
+      return a.decks === undefined ? { type: a.type } : { type: a.type, decks: parseDecks(a.decks) };
+    case "answer": case "pass": case "skip": case "deeper": case "next":
     case "dawn": case "reset": case "timeup": case "reveal":
       return { type: a.type };
     case "ask": {
@@ -111,14 +122,7 @@ export function parseAction(raw: unknown): AnyAction {
     case "buddy": return { type: "buddy", to: int(a.to, 5) };
     case "kick": return { type: "kick", player: int(a.player, 15) };
     case "lock": return { type: "lock", locked: bool(a.locked) };
-    case "decks": {
-      if (!Array.isArray(a.decks) || a.decks.length < 1 || a.decks.length > 3) throw new GameError("คำขอไม่ถูกต้อง");
-      const ds = a.decks.map((d) => {
-        if (d !== "normal" && d !== "spicy" && d !== "couple") throw new GameError("คำขอไม่ถูกต้อง");
-        return d as "normal" | "spicy" | "couple";
-      });
-      return { type: "decks", decks: ds };
-    }
+    case "decks": return { type: "decks", decks: parseDecks(a.decks) };
     /* มนุษย์หมาป่า */
     case "settings":
       return { type: "settings", auto: bool(a.auto), wolves: Math.max(1, int(a.wolves, 5)), seer: bool(a.seer), doctor: bool(a.doctor), hunter: bool(a.hunter) };

@@ -6,20 +6,12 @@ import { NEED_FRONT, SPECIALS, tableRopes, type Card, type GameEvent, type GameV
 import { cssVar, type Ctx } from "./shared";
 
 // เลือกสำรับคำถาม (ห้องรอ และหน้าจบรอบ) เลือกได้หลายสำรับ ผสมกัน
-export function DeckPicker({ ctx, sets }: { ctx: Ctx; sets: DeckKey[] }) {
-  // แตะแล้วเปลี่ยนบนจอทันที ไม่ต้องรอเซิร์ฟเวอร์ (คำขอเข้าคิวส่งตามลำดับ)
-  const [draft, setDraft] = useState<DeckKey[] | null>(null);
-  const same = (a: DeckKey[], b: DeckKey[]) => a.length === b.length && a.every((k) => b.includes(k));
-  const shown = draft ?? sets;
-  // เซิร์ฟเวอร์ยืนยันตรงกับที่เลือกแล้ว ก็เลิกใช้ค่าชั่วคราว
-  useEffect(() => { if (draft && same(draft, sets)) setDraft(null); }, [sets]); // eslint-disable-line react-hooks/exhaustive-deps
-
+export function DeckPicker({ ctx, sets, value, onChange }: { ctx: Ctx; sets: DeckKey[]; value: DeckKey[]; onChange: (v: DeckKey[]) => void }) {
+  // เลือกบนเครื่องเจ้าของห้องอย่างเดียว ยังไม่ส่งไปไหน ส่งพร้อมตอนกดเริ่มเกม / เล่นอีกรอบ
+  const shown = ctx.isHost ? value : sets;
   const toggle = (k: DeckKey) => {
-    const next = DECK_KEYS.filter((x) => (x === k ? !shown.includes(x) : shown.includes(x)));
-    if (!next.length) return; // ต้องมีอย่างน้อย 1 สำรับ
-    setDraft(next);
-    // ส่งไม่ผ่าน: กลับไปใช้ค่าจากเซิร์ฟเวอร์
-    ctx.send({ type: "decks", decks: next }).then((ok) => { if (!ok) setDraft((d) => (d && same(d, next) ? null : d)); });
+    const next = DECK_KEYS.filter((x) => (x === k ? !value.includes(x) : value.includes(x)));
+    if (next.length) onChange(next); // ต้องมีอย่างน้อย 1 สำรับ
   };
   return (
     <div className="panel">
@@ -34,9 +26,9 @@ export function DeckPicker({ ctx, sets }: { ctx: Ctx; sets: DeckKey[] }) {
           ))}
         </div>
       ) : (
-        <p>{sets.map((k) => DECKS[k].name).join(" + ")}</p>
+        <p>{shown.map((k) => DECKS[k].name).join(" + ")}</p>
       )}
-      {sets.includes("spicy") && !ctx.isHost && <p className="muted small" style={{ marginTop: 6 }}>มีคำถาม 18+ ปนอยู่ ไม่สบายใจข้อไหนใช้การ์ดผ่านได้</p>}
+      {shown.includes("spicy") && !ctx.isHost && <p className="muted small" style={{ marginTop: 6 }}>มีคำถาม 18+ ปนอยู่ ไม่สบายใจข้อไหนใช้การ์ดผ่านได้</p>}
     </div>
   );
 }
@@ -52,6 +44,7 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
   const [sel, setSel] = useState<Sel>(emptySel);
   const [budPick, setBudPick] = useState(false);
   const [toast, setToast] = useState<GameEvent | null>(null);
+  const [deckSel, setDeckSel] = useState<DeckKey[] | null>(null); // สำรับที่เลือกไว้สำหรับรอบหน้า
   const seenSeq = useRef<number | null>(null);
   const meP = myI > -1 ? v.players[myI] : null;
 
@@ -103,7 +96,7 @@ export default function LthPlay({ ctx, v, hand }: { ctx: Ctx; v: GameView; hand:
               : `${next.desc} การ์ดคำถามในมือจะเปลี่ยนเป็นของชั้นใหม่ การ์ดพิเศษเก็บไว้ได้ และทุกคนได้การ์ดผ่านคืน 1 ใบ`}
           </p>
           {end
-            ? isHost ? <><DeckPicker ctx={ctx} sets={v.sets} /><button className="btn" style={{ marginTop: 14 }} onClick={() => send({ type: "again" })} disabled={busy}>เล่นอีกรอบ</button></> : <p className="muted center">รอเจ้าของห้องเริ่มรอบใหม่</p>
+            ? isHost ? <><DeckPicker ctx={ctx} sets={v.sets} value={deckSel ?? v.sets} onChange={setDeckSel} /><button className="btn" style={{ marginTop: 14 }} onClick={() => send({ type: "again", decks: deckSel ?? v.sets })} disabled={busy}>เล่นอีกรอบ</button></> : <p className="muted center">รอเจ้าของห้องเริ่มรอบใหม่</p>
             : <button className="btn" onClick={() => send({ type: "next" })} disabled={busy}>ดำลงไป</button>}
           {notes}
         </div>

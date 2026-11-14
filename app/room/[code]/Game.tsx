@@ -8,7 +8,7 @@ import { T } from "@/lib/db-names";
 import { CODE_RE, lastName, saveName } from "@/lib/ui";
 import { loadQuestionTexts } from "@/lib/questions-client";
 import { GAMES, gameOf, type AnyAction, type AnyPrivate, type AnyView } from "@/lib/games";
-import type { GameView } from "@/lib/engine";
+import type { DeckKey, GameView } from "@/lib/engine";
 import type { WolfView } from "@/lib/wolf";
 import type { LetterView } from "@/lib/letter";
 import type { SpyView } from "@/lib/spy";
@@ -48,6 +48,7 @@ export default function Game({ code }: { code: string }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [name, setName] = useState("");
+  const [deckSel, setDeckSel] = useState<DeckKey[] | null>(null); // สำรับที่เจ้าของห้องเลือกไว้ ส่งตอนกดเริ่มเกม
   const versionRef = useRef(0);
   const meVersion = useRef(0);
   const meInflight = useRef<number | null>(null);
@@ -295,7 +296,7 @@ export default function Game({ code }: { code: string }) {
         </div>
         {v.game === "wolf" && <WolfLobby ctx={ctx} v={v} />}
         {v.game === "letter" && <LetterLobby v={v} />}
-        {v.game === "lth" && <DeckPicker ctx={ctx} sets={(v as GameView).sets ?? ["normal"]} />}
+        {v.game === "lth" && <DeckPicker ctx={ctx} sets={(v as GameView).sets ?? ["normal"]} value={deckSel ?? (v as GameView).sets ?? ["normal"]} onChange={setDeckSel} />}
         {v.game === "spy" && <SpyLobby ctx={ctx} v={v} />}
         {isHost && (
           <label className="toggle"><input type="checkbox" checked={v.locked} onChange={() => send({ type: "lock", locked: !v.locked })} />
@@ -303,7 +304,7 @@ export default function Game({ code }: { code: string }) {
         )}
         <div style={{ marginTop: 26 }}>
           {isHost ? (
-            <button className="btn" onClick={() => send({ type: "start" })} disabled={busy || !enough}>
+            <button className="btn" onClick={() => send(v.game === "lth" ? { type: "start", decks: deckSel ?? (v as GameView).sets ?? ["normal"] } : { type: "start" })} disabled={busy || !enough}>
               {enough ? "เริ่มเกม" : `รอเพื่อนอีกอย่างน้อย ${short} คน`}
             </button>
           ) : <p className="center muted">รอเจ้าของห้องเริ่มเกม</p>}
